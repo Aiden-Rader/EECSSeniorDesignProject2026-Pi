@@ -54,7 +54,7 @@ def get_or_create_device():
 	"""
 	now = utc_now()
 
-	existing_device = devices_collection.find_one({"__id": DEVICE_ID})
+	existing_device = devices_collection.find_one({"_id": DEVICE_ID})
 
 	if not existing_device:
 		new_device = build_device_insert_doc(
@@ -70,7 +70,7 @@ def get_or_create_device():
 	linked_status = "online" if owner_uid else "unlinked"
 
 	devices_collection.update_one(
-		{"__id": DEVICE_ID},
+		{"_id": DEVICE_ID},
 		{
 			"$set": {
 				"lastSeenAt": now,
@@ -82,7 +82,7 @@ def get_or_create_device():
 		}
 	)
 
-	return devices_collection.find_one({"__id": DEVICE_ID})
+	return devices_collection.find_one({"_id": DEVICE_ID})
 
 
 def update_device_state(owner_uid, pulse_count, flow_rate_ml_per_sec, sensor_connected):
