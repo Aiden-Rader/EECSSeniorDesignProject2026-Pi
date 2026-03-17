@@ -1,2 +1,8 @@
 # Env Files
 .env
+hidden_files
+
+# Python Files
+__pycache__/
+*.pyc
+.venv/

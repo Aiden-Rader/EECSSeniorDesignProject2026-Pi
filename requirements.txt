@@ -1,0 +1,6 @@
+# Mongo packages
+pymongo
+python-dotenv
+
+# Rasphberry Pi packages
+gpiozero
