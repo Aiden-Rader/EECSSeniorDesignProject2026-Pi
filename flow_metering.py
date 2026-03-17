@@ -14,7 +14,7 @@ from src.models import (build_device_insert_doc, build_device_state_doc, build_h
 # --- Configuration ---
 load_dotenv()  # automatically load environment variables, all must be setup in .env (FOR NOW)
 MONGO_URI = os.getenv("MONGO_URI")
-DB_NAME = os.getenv("DB_NAME")
+DB_NAME = os.getenv("MONGO_DB_NAME")
 
 DEVICES_COLLECTION = os.getenv("MONGO_DEVICES_COLLECTION", "devices")
 DEVICE_STATE_COLLECTION = os.getenv("MONGO_DEVICES_COLLECTION", "device_state")

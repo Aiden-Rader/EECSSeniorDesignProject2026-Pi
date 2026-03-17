@@ -1,6 +1,6 @@
 # src/models.py
 
-from utils import utc_now
+from .utils import utc_now
 
 # Device Model
 def build_device_insert_doc(device_id, owner_uid, device_name, calibration_factor):
