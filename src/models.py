@@ -1,10 +1,10 @@
 # src/models.py
 
-from .utils import utc_now
+from .utils import utc_now, est_now
 
 # Device Model
 def build_device_insert_doc(device_id, owner_uid, device_name, calibration_factor, linked_status="unlinked"):
-	now = utc_now()
+	now = est_now()
 	return {
 		"_id": device_id,
 		"ownerUid": owner_uid if owner_uid else None,
@@ -21,7 +21,7 @@ def build_device_state_doc(device_id, owner_uid, pulse_count, flow_rate_ml_per_s
 	return {
 		"deviceId": device_id,
 		"ownerUid": owner_uid,
-		"updatedAt": utc_now(),
+		"updatedAt": est_now(),
 		"data": {
 			"currentPulseCount": pulse_count,
 			"currentFlowRateMlPerSec": flow_rate_ml_per_sec,
@@ -35,7 +35,7 @@ def build_hydration_event_doc(device_id, owner_uid, pulse_count, volume_ml, sess
 	return {
 		"deviceId": device_id,
 		"ownerUid": owner_uid,
-		"createdAt": utc_now(),
+		"createdAt": est_now(),
 		"data": {
 			"pulseCount": pulse_count,
 			"volumeMl": volume_ml,
