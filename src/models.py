@@ -25,7 +25,8 @@ def build_device_state_doc(device_id, owner_uid, pulse_count, flow_rate_ml_per_s
 		"data": {
 			"currentPulseCount": pulse_count,
 			"currentFlowRateMlPerSec": flow_rate_ml_per_sec,
-			"sensorConnected": sensor_connected
+			"sensorConnected": sensor_connected,
+			"hasWater": True  # TODO: For now assume the device has water until we get other sensor data
 		}
 	}
 

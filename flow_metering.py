@@ -85,7 +85,7 @@ def get_or_create_device():
 	return devices_collection.find_one({"_id": DEVICE_ID})
 
 
-def update_device_state(owner_uid, pulse_count, flow_rate_ml_per_sec, sensor_connected):
+def update_device_state(owner_uid, pulse_count, flow_rate_ml_per_sec, sensor_connected, has_water):
 	"""Updates the device state document in the database.
 
 	Args:
@@ -93,13 +93,15 @@ def update_device_state(owner_uid, pulse_count, flow_rate_ml_per_sec, sensor_con
 		pulse_count (int): The pulse count of the device.
 		flow_rate_ml_per_sec (float): The flow rate of the device in ml/s.
 		sensor_connected (bool): Whether the sensor is connected.
+		has_water (bool): Whether the device has water.
 	"""
 	payload = build_device_state_doc(
 		device_id=DEVICE_ID,
 		owner_uid=owner_uid,
 		pulse_count=pulse_count,
 		flow_rate_ml_per_sec=flow_rate_ml_per_sec,
-		sensor_connected=sensor_connected
+		sensor_connected=sensor_connected,
+		has_water=True  # TODO: For now assume the device has water until we get other sensor data
 	)
 
 	device_state_collection.update_one(
