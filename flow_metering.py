@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 import pymongo
 from gpiozero import DigitalInputDevice
 
-from src.utils import utc_now
+from src.utils import est_now
 from src.models import (build_device_insert_doc, build_device_state_doc, build_hydration_event_doc)
 
 # --- Configuration ---
@@ -52,7 +52,7 @@ def get_or_create_device():
 	The status is set to 'online' if the device has an ownerUid, and 'unlinked' otherwise.
 	Returns the device document.
 	"""
-	now = utc_now()
+	now = est_now()
 
 	existing_device = devices_collection.find_one({"_id": DEVICE_ID})
 
@@ -154,13 +154,13 @@ try:
 	print(f"Device ready: {DEVICE_ID}")
 
 	while True:
-		session_started_at = utc_now()
+		session_started_at = est_now()
 
 		# Reset count for the next interval
 		pulse_count = 0
 		time.sleep(POLLING_INTERVAL)  # Measure over a 10-second window
 
-		session_ended_at = utc_now()
+		session_ended_at = est_now()
 		duration_seconds = POLLING_INTERVAL
 
 		 # refresh device in case ownerUid gets linked later by frontend/backend
