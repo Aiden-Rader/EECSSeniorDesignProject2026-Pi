@@ -3,7 +3,7 @@
 from .utils import utc_now
 
 # Device Model
-def build_device_insert_doc(device_id, owner_uid, device_name, calibration_factor):
+def build_device_insert_doc(device_id, owner_uid, device_name, calibration_factor, linked_status="unlinked"):
 	now = utc_now()
 	return {
 		"_id": device_id,
@@ -12,7 +12,7 @@ def build_device_insert_doc(device_id, owner_uid, device_name, calibration_facto
 		"calibrationFactor": calibration_factor,
 		"createdAt": now,
 		"lastSeenAt": now,
-		"status": "unlinked",
+		"status": linked_status,
 		"isActive": True
 	}
 

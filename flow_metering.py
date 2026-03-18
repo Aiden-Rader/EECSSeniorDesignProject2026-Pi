@@ -67,17 +67,16 @@ def get_or_create_device():
 		return new_device
 
 	owner_uid = existing_device.get("ownerUid")
-	linked_status = "online" if owner_uid else "unlinked"
+	linked_status = "linked" if owner_uid else "unlinked"
 
 	devices_collection.update_one(
 		{"_id": DEVICE_ID},
 		{
 			"$set": {
-				"lastSeenAt": now,
-				"status": linked_status,
-				"isActive": True,
 				"deviceName": DEVICE_NAME,
-				"calibrationFactor": CALIBRATION_FACTOR
+				"calibrationFactor": CALIBRATION_FACTOR,
+				"status": linked_status,
+				"isActive": True
 			}
 		}
 	)
