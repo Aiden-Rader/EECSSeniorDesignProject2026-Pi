@@ -88,7 +88,7 @@ def update_device_state(owner_uid, pulse_count, flow_rate_ml_per_sec, sensor_con
         pulse_count=pulse_count,
         flow_rate_ml_per_sec=flow_rate_ml_per_sec,
         sensor_connected=sensor_connected,
-        has_water=has_water  # UNCOMMENTED: Now dynamically passing the sensor state!
+        has_water=has_water
     )
 
     device_state_collection.update_one(
@@ -115,7 +115,11 @@ def insert_hydration_event(owner_uid, pulse_count, volume_ml, session_started_at
 
 # --- Sensor Logic ---
 pulse_count = 0
-has_water = False  # Initialize globally
+has_water = False
+
+# CLI Session Trackers
+session_total_ounces = 0.0
+in_session = False
 
 def sensor_has_water():
     global has_water
@@ -127,7 +131,6 @@ def sensor_no_water():
 
 def count_pulse():
     global pulse_count
-    # Only count the pulse if the capacitive sensor detects liquid
     if has_water:
         pulse_count += 1
 
@@ -152,19 +155,23 @@ try:
     while True:
         session_started_at = est_now()
 
-        # Reset count for the next interval
-        pulse_count = 0
-        time.sleep(POLLING_INTERVAL)  # Measure over a 10-second window
+        # Measure over a 10-second window
+        time.sleep(POLLING_INTERVAL)  
 
         session_ended_at = est_now()
         duration_seconds = POLLING_INTERVAL
 
-        # refresh device in case ownerUid gets linked later by frontend/backend
+        # --- Take a snapshot and reset instantly ---
+        pulses_this_interval = pulse_count 
+        pulse_count = 0 
+        # -------------------------------------------
+
+        # refresh device in case ownerUid gets linked later
         device = get_or_create_device()
         owner_uid = device.get("ownerUid")
 
         # pulses / calibration factor = liters during interval
-        liters = pulse_count / CALIBRATION_FACTOR
+        liters = pulses_this_interval / CALIBRATION_FACTOR
         volume_ml = liters * 1000
         flow_rate_ml_per_sec = volume_ml / duration_seconds if duration_seconds > 0 else 0
 
@@ -172,35 +179,53 @@ try:
         try:
             update_device_state(
                 owner_uid=owner_uid,
-                pulse_count=pulse_count,
+                pulse_count=pulses_this_interval,
                 flow_rate_ml_per_sec=flow_rate_ml_per_sec,
                 sensor_connected=True,
-                has_water=has_water # Now passing the live state to the DB
+                has_water=has_water 
             )
         except Exception as e:
             print(f"Failed to update device state: {e}")
 
         # insert event only when real flow happened
-        if pulse_count > 0:
+        if pulses_this_interval > 0:
+            
+            # Update CLI session tracker
+            interval_ounces = volume_ml * 0.033814
+            session_total_ounces += interval_ounces
+            in_session = True
+            
             try:
                 res = insert_hydration_event(
                     owner_uid=owner_uid,
-                    pulse_count=pulse_count,
+                    pulse_count=pulses_this_interval,
                     volume_ml=volume_ml,
                     session_started_at=session_started_at,
                     session_ended_at=session_ended_at,
                     duration_seconds=duration_seconds
                 )
                 print(
-                    f"Logged hydration event | pulses={pulse_count} | "
+                    f"Logged hydration event | pulses={pulses_this_interval} | "
                     f"volume_ml={volume_ml:.2f} | "
                     f"flow_ml_per_sec={flow_rate_ml_per_sec:.2f} | "
                     f"id={res.inserted_id}"
                 )
+                print(f"🥤 [Session] Running total: {session_total_ounces:.2f} oz")
+                
             except Exception as e:
                 print(f"Failed to insert hydration event: {e}")
         else:
+            # If we were in a session and flow stopped, announce the final total and reset
+            if in_session:
+                print("-" * 40)
+                print(f"✅ [Session Ended] Final amount consumed: {session_total_ounces:.2f} oz")
+                print("-" * 40)
+                session_total_ounces = 0.0
+                in_session = False
+                
             print(f"No flow detected this interval. (Water presence: {has_water}) Updated device_state only.")
 
 except KeyboardInterrupt:
+    if in_session:
+        print(f"\n✅ [Session Ended via Exit] Final amount consumed: {session_total_ounces:.2f} oz")
     print("\nMonitoring stopped.")
