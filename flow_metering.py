@@ -25,192 +25,182 @@ DEVICE_NAME = os.getenv("DEVICE_NAME", "Main Pi")
 GPIO_PIN = int(os.getenv("GPIO_PIN"))
 CALIBRATION_FACTOR = float(os.getenv("CALIBRATION_FACTOR"))
 
-liquid_sensor = DigitalInputDevice(4, pull_up=False)
-
 POLLING_INTERVAL = 10
 
 if not MONGO_URI:
-	raise ValueError("Missing MONGO_URI in .env")
+    raise ValueError("Missing MONGO_URI in .env")
 
 if not DB_NAME:
-	raise ValueError("Missing DB_NAME in .env")
+    raise ValueError("Missing DB_NAME in .env")
 
 # --- Database Setup ---
 try:
-	client = pymongo.MongoClient(MONGO_URI)
-	db = client[DB_NAME]
-	devices_collection = db[DEVICES_COLLECTION]
-	device_state_collection = db[DEVICE_STATE_COLLECTION]
-	hydration_events_collection = db[HYDRATION_EVENTS_COLLECTION]
-	print("Successfully connected to MongoDB.")
+    client = pymongo.MongoClient(MONGO_URI)
+    db = client[DB_NAME]
+    devices_collection = db[DEVICES_COLLECTION]
+    device_state_collection = db[DEVICE_STATE_COLLECTION]
+    hydration_events_collection = db[HYDRATION_EVENTS_COLLECTION]
+    print("Successfully connected to MongoDB.")
 except Exception as e:
-	print(f"Database connection error: {e}")
-	raise SystemExit(1)
+    print(f"Database connection error: {e}")
+    raise SystemExit(1)
 
 def get_or_create_device():
-	"""
-	Gets a device document from the database, or creates a new one if it doesn't exist.
-	If the device exists, it updates the last seen at and status fields of the document.
-	The status is set to 'online' if the device has an ownerUid, and 'unlinked' otherwise.
-	Returns the device document.
-	"""
-	now = est_now()
+    """
+    Gets a device document from the database, or creates a new one if it doesn't exist.
+    """
+    now = est_now()
+    existing_device = devices_collection.find_one({"_id": DEVICE_ID})
 
-	existing_device = devices_collection.find_one({"_id": DEVICE_ID})
+    if not existing_device:
+        new_device = build_device_insert_doc(
+            device_id=DEVICE_ID,
+            owner_uid=None,
+            device_name=DEVICE_NAME,
+            calibration_factor=CALIBRATION_FACTOR
+        )
+        devices_collection.insert_one(new_device)
+        return new_device
 
-	if not existing_device:
-		new_device = build_device_insert_doc(
-			device_id=DEVICE_ID,
-			owner_uid=None,
-			device_name=DEVICE_NAME,
-			calibration_factor=CALIBRATION_FACTOR
-		)
-		devices_collection.insert_one(new_device)
-		return new_device
+    owner_uid = existing_device.get("ownerUid")
+    linked_status = "linked" if owner_uid else "unlinked"
 
-	owner_uid = existing_device.get("ownerUid")
-	linked_status = "linked" if owner_uid else "unlinked"
+    devices_collection.update_one(
+        {"_id": DEVICE_ID},
+        {
+            "$set": {
+                "deviceName": DEVICE_NAME,
+                "calibrationFactor": CALIBRATION_FACTOR,
+                "status": linked_status,
+                "isActive": True
+            }
+        }
+    )
 
-	devices_collection.update_one(
-		{"_id": DEVICE_ID},
-		{
-			"$set": {
-				"deviceName": DEVICE_NAME,
-				"calibrationFactor": CALIBRATION_FACTOR,
-				"status": linked_status,
-				"isActive": True
-			}
-		}
-	)
-
-	return devices_collection.find_one({"_id": DEVICE_ID})
+    return devices_collection.find_one({"_id": DEVICE_ID})
 
 
 def update_device_state(owner_uid, pulse_count, flow_rate_ml_per_sec, sensor_connected, has_water):
-	"""Updates the device state document in the database.
+    """Updates the device state document in the database."""
+    payload = build_device_state_doc(
+        device_id=DEVICE_ID,
+        owner_uid=owner_uid,
+        pulse_count=pulse_count,
+        flow_rate_ml_per_sec=flow_rate_ml_per_sec,
+        sensor_connected=sensor_connected,
+        has_water=has_water  # UNCOMMENTED: Now dynamically passing the sensor state!
+    )
 
-	Args:
-		owner_uid (str): The ownerUid of the device.
-		pulse_count (int): The pulse count of the device.
-		flow_rate_ml_per_sec (float): The flow rate of the device in ml/s.
-		sensor_connected (bool): Whether the sensor is connected.
-		has_water (bool): Whether the device has water.
-	"""
-	payload = build_device_state_doc(
-		device_id=DEVICE_ID,
-		owner_uid=owner_uid,
-		pulse_count=pulse_count,
-		flow_rate_ml_per_sec=flow_rate_ml_per_sec,
-		sensor_connected=sensor_connected,
-		has_water=True  # TODO: For now assume the device has water until we get other sensor data
-	)
-
-	device_state_collection.update_one(
-		{"deviceId": DEVICE_ID},
-		{"$set": payload},
-		upsert=True
-	)
+    device_state_collection.update_one(
+        {"deviceId": DEVICE_ID},
+        {"$set": payload},
+        upsert=True
+    )
 
 
 def insert_hydration_event(owner_uid, pulse_count, volume_ml, session_started_at, session_ended_at, duration_seconds):
-	"""
-	Insert a new hydration event into the database.
+    """Insert a new hydration event into the database."""
+    payload = build_hydration_event_doc(
+        device_id=DEVICE_ID,
+        owner_uid=owner_uid,
+        pulse_count=pulse_count,
+        volume_ml=volume_ml,
+        session_started_at=session_started_at,
+        session_ended_at=session_ended_at,
+        duration_seconds=duration_seconds
+    )
 
-	Args:
-		owner_uid (str): The ownerUid of the device.
-		pulse_count (int): The pulse count of the device.
-		volume_ml (float): The volume of liquid in ml consumed during the session.
-		session_started_at (datetime): The time at which the hydration session started.
-		session_ended_at (datetime): The time at which the hydration session ended.
-		duration_seconds (int): The duration of the hydration session in seconds.
+    return hydration_events_collection.insert_one(payload)
 
-	Returns:
-		pymongo.InsertOneResult: The result of the insert operation.
-	"""
-	payload = build_hydration_event_doc(
-		device_id=DEVICE_ID,
-		owner_uid=owner_uid,
-		pulse_count=pulse_count,
-		volume_ml=volume_ml,
-		session_started_at=session_started_at,
-		session_ended_at=session_ended_at,
-		duration_seconds=duration_seconds
-	)
-
-	return hydration_events_collection.insert_one(payload)
 
 # --- Sensor Logic ---
 pulse_count = 0
+has_water = False  # Initialize globally
+
+def sensor_has_water():
+    global has_water
+    has_water = True
+
+def sensor_no_water():
+    global has_water
+    has_water = False
 
 def count_pulse():
-	global pulse_count
-	if liquid_sensor.isActive:
-		pulse_count += 1
-		has_water = True
-	else:
-		has_water = False
+    global pulse_count
+    # Only count the pulse if the capacitive sensor detects liquid
+    if has_water:
+        pulse_count += 1
 
-# Initialize the sensor pin
+# Initialize the flow sensor pin
 sensor = DigitalInputDevice(GPIO_PIN, pull_up=False)
 sensor.when_activated = count_pulse
+
+# Initialize the capacitive liquid level sensor on GPIO 4
+liquid_sensor = DigitalInputDevice(4, pull_up=False)
+liquid_sensor.when_activated = sensor_has_water
+liquid_sensor.when_deactivated = sensor_no_water
+
+# Set initial state based on current sensor reading at startup
+has_water = liquid_sensor.is_active
 
 print("Monitoring flow... Press Ctrl+C to stop.")
 
 try:
-	device = get_or_create_device()
-	print(f"Device ready: {DEVICE_ID}")
+    device = get_or_create_device()
+    print(f"Device ready: {DEVICE_ID}")
 
-	while True:
-		session_started_at = est_now()
+    while True:
+        session_started_at = est_now()
 
-		# Reset count for the next interval
-		pulse_count = 0
-		time.sleep(POLLING_INTERVAL)  # Measure over a 10-second window
+        # Reset count for the next interval
+        pulse_count = 0
+        time.sleep(POLLING_INTERVAL)  # Measure over a 10-second window
 
-		session_ended_at = est_now()
-		duration_seconds = POLLING_INTERVAL
+        session_ended_at = est_now()
+        duration_seconds = POLLING_INTERVAL
 
-		 # refresh device in case ownerUid gets linked later by frontend/backend
-		device = get_or_create_device()
-		owner_uid = device.get("ownerUid")
+        # refresh device in case ownerUid gets linked later by frontend/backend
+        device = get_or_create_device()
+        owner_uid = device.get("ownerUid")
 
-		# pulses / calibration factor = liters during interval
-		liters = pulse_count / CALIBRATION_FACTOR
-		volume_ml = liters * 1000
-		flow_rate_ml_per_sec = volume_ml / duration_seconds if duration_seconds > 0 else 0
+        # pulses / calibration factor = liters during interval
+        liters = pulse_count / CALIBRATION_FACTOR
+        volume_ml = liters * 1000
+        flow_rate_ml_per_sec = volume_ml / duration_seconds if duration_seconds > 0 else 0
 
-		# update latest device state
-		try:
-			update_device_state(
-				owner_uid=owner_uid,
-				pulse_count=pulse_count,
-				flow_rate_ml_per_sec=flow_rate_ml_per_sec,
-				sensor_connected=True
-			)
-		except Exception as e:
-			print(f"Failed to update device state: {e}")
+        # update latest device state
+        try:
+            update_device_state(
+                owner_uid=owner_uid,
+                pulse_count=pulse_count,
+                flow_rate_ml_per_sec=flow_rate_ml_per_sec,
+                sensor_connected=True,
+                has_water=has_water # Now passing the live state to the DB
+            )
+        except Exception as e:
+            print(f"Failed to update device state: {e}")
 
-		# insert event only when real flow happened
-		if pulse_count > 0:
-			try:
-				res = insert_hydration_event(
-					owner_uid=owner_uid,
-					pulse_count=pulse_count,
-					volume_ml=volume_ml,
-					session_started_at=session_started_at,
-					session_ended_at=session_ended_at,
-					duration_seconds=duration_seconds
-				)
-				print(
-					f"Logged hydration event | pulses={pulse_count} | "
-					f"volume_ml={volume_ml:.2f} | "
-					f"flow_ml_per_sec={flow_rate_ml_per_sec:.2f} | "
-					f"id={res.inserted_id}"
-				)
-			except Exception as e:
-				print(f"Failed to insert hydration event: {e}")
-		else:
-			print("No flow detected this interval. Updated device_state only.")
+        # insert event only when real flow happened
+        if pulse_count > 0:
+            try:
+                res = insert_hydration_event(
+                    owner_uid=owner_uid,
+                    pulse_count=pulse_count,
+                    volume_ml=volume_ml,
+                    session_started_at=session_started_at,
+                    session_ended_at=session_ended_at,
+                    duration_seconds=duration_seconds
+                )
+                print(
+                    f"Logged hydration event | pulses={pulse_count} | "
+                    f"volume_ml={volume_ml:.2f} | "
+                    f"flow_ml_per_sec={flow_rate_ml_per_sec:.2f} | "
+                    f"id={res.inserted_id}"
+                )
+            except Exception as e:
+                print(f"Failed to insert hydration event: {e}")
+        else:
+            print(f"No flow detected this interval. (Water presence: {has_water}) Updated device_state only.")
 
 except KeyboardInterrupt:
-	print("\nMonitoring stopped.")
+    print("\nMonitoring stopped.")
