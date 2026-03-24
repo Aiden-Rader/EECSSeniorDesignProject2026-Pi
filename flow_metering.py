@@ -146,6 +146,9 @@ def count_pulse():
 	global pulse_count
 	if liquid_sensor.isActive
 		pulse_count += 1
+		has_water = True
+	else:
+		has_water = False
 
 # Initialize the sensor pin
 sensor = DigitalInputDevice(GPIO_PIN, pull_up=False)
