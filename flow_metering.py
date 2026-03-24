@@ -25,6 +25,8 @@ DEVICE_NAME = os.getenv("DEVICE_NAME", "Main Pi")
 GPIO_PIN = int(os.getenv("GPIO_PIN"))
 CALIBRATION_FACTOR = float(os.getenv("CALIBRATION_FACTOR"))
 
+liquid_sensor = DigitalInputDevice(4, pull_up=False)
+
 POLLING_INTERVAL = 10
 
 if not MONGO_URI:
@@ -142,7 +144,8 @@ pulse_count = 0
 
 def count_pulse():
 	global pulse_count
-	pulse_count += 1
+	if liquid_sensor.isActive
+		pulse_count += 1
 
 # Initialize the sensor pin
 sensor = DigitalInputDevice(GPIO_PIN, pull_up=False)
