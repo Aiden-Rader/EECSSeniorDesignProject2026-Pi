@@ -144,7 +144,7 @@ pulse_count = 0
 
 def count_pulse():
 	global pulse_count
-	if liquid_sensor.isActive
+	if liquid_sensor.isActive:
 		pulse_count += 1
 		has_water = True
 	else:
