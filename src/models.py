@@ -17,7 +17,7 @@ def build_device_insert_doc(device_id, owner_uid, device_name, calibration_facto
 	}
 
 # Device State Model
-def build_device_state_doc(device_id, owner_uid, pulse_count, flow_rate_ml_per_sec, sensor_connected):
+def build_device_state_doc(device_id, owner_uid, pulse_count, flow_rate_ml_per_sec, sensor_connected, has_water):
 	return {
 		"deviceId": device_id,
 		"ownerUid": owner_uid,
@@ -26,7 +26,7 @@ def build_device_state_doc(device_id, owner_uid, pulse_count, flow_rate_ml_per_s
 			"currentPulseCount": pulse_count,
 			"currentFlowRateMlPerSec": flow_rate_ml_per_sec,
 			"sensorConnected": sensor_connected,
-			"hasWater": True  # TODO: For now assume the device has water until we get other sensor data
+			"hasWater": has_water  # TODO: For now assume the device has water until we get other sensor data
 		}
 	}
 
